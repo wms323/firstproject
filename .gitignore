@@ -1,0 +1,15 @@
+# PyCharm
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+
+# 数据文件（太大，不放 GitHub）
+Data/
+
+# TensorBoard 日志（可以重新生成）
+logs/
