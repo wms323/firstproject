@@ -13,3 +13,6 @@ Data/
 
 # TensorBoard 日志（可以重新生成）
 logs/
+
+# 模型权重文件（二进制，可重新训练）
+*.pth

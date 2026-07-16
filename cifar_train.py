@@ -5,21 +5,20 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from torchvision.transforms import v2
+torch.manual_seed(42)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-#数据准备
 transform=v2.Compose([
     v2.ToImage(),
     v2.ToDtype(torch.float32,scale=True),
     v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
-#下载CIFAR10数据集
 train_dataset=torchvision.datasets.CIFAR10(root="./data",train=True,download=True,transform=transform)
 test_dataset=torchvision.datasets.CIFAR10(root="./data",train=False,download=True,transform=transform)
 
-#DataLoader
 train_dataloader=DataLoader(train_dataset,batch_size=64,shuffle=True)
 test_dataloader=DataLoader(test_dataset,batch_size=64,shuffle=False)
 
@@ -44,6 +43,47 @@ class Net(nn.Module):
         x=self.layers(x)
         return x
 
-net = Net()
-net = net.to(device)
+net=Net()
+net=net.to(device)
+criterion=nn.CrossEntropyLoss()
+optimizer=optim.SGD(net.parameters(),lr=0.001,momentum=0.9)
+
+net.train()
+num_epochs=5
+best_acc=0.0
+writer=SummaryWriter("./logs")
+for epoch in range(num_epochs):
+    running_loss=0.0
+
+    for i,data in enumerate(train_dataloader):
+        inputs,labels=data
+        inputs,labels=inputs.to(device),labels.to(device)
+        outputs=net(inputs)
+        loss=criterion(outputs,labels)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        running_loss+=loss.item()
+
+    net.eval()
+    correct=0
+    total=0
+    with torch.no_grad():
+        for data in test_dataloader:
+            inputs,labels=data
+            inputs,labels=inputs.to(device),labels.to(device)
+            outputs=net(inputs)
+            _,predicted=torch.max(outputs,1)
+            total+=labels.size(0)
+            correct+=predicted.eq(labels).sum().item()
+    accuracy=100*correct/total
+    net.train()
+    writer.add_scalar("Loss/train",running_loss/len(train_dataloader),epoch)
+    writer.add_scalar("Accuracy/test",accuracy,epoch)
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_dataloader):.4f}, Accuracy: {accuracy:.2f}")
+    if accuracy>best_acc:
+        best_acc=accuracy
+        torch.save(net.state_dict(),"best_cifar10.pth")
+        print(f"保存最佳模型，准确率：{best_acc:.2f}%")
+writer.close()
 
