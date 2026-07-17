@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from torchvision.transforms import v2
+from torch.optim.lr_scheduler import StepLR
 torch.manual_seed(42)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -45,11 +46,12 @@ class Net(nn.Module):
 
 net=Net()
 net=net.to(device)
-criterion=nn.CrossEntropyLoss()
+loss_fn=nn.CrossEntropyLoss()
 optimizer=optim.SGD(net.parameters(),lr=0.001,momentum=0.9)
+scheduler=StepLR(optimizer,step_size=2,gamma=0.5)
 
 net.train()
-num_epochs=5
+num_epochs=10
 best_acc=0.0
 writer=SummaryWriter("./logs")
 for epoch in range(num_epochs):
@@ -59,7 +61,7 @@ for epoch in range(num_epochs):
         inputs,labels=data
         inputs,labels=inputs.to(device),labels.to(device)
         outputs=net(inputs)
-        loss=criterion(outputs,labels)
+        loss=loss_fn(outputs,labels)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -80,7 +82,9 @@ for epoch in range(num_epochs):
     net.train()
     writer.add_scalar("Loss/train",running_loss/len(train_dataloader),epoch)
     writer.add_scalar("Accuracy/test",accuracy,epoch)
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_dataloader):.4f}, Accuracy: {accuracy:.2f}")
+    writer.add_scalar("LR",optimizer.param_groups[0]['lr'],epoch)
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_dataloader):.4f}, Accuracy: {accuracy:.2f},LR:{optimizer.param_groups[0]['lr']:.6f}")
+    scheduler.step()
     if accuracy>best_acc:
         best_acc=accuracy
         torch.save(net.state_dict(),"best_cifar10.pth")
