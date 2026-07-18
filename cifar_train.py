@@ -1,4 +1,5 @@
 import torch
+import os
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -7,7 +8,7 @@ import torchvision
 from torchvision.transforms import v2
 from torch.optim.lr_scheduler import StepLR
 torch.manual_seed(42)
-
+os.makedirs("checkpoints",exist_ok=True)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
@@ -48,11 +49,13 @@ net=Net()
 net=net.to(device)
 loss_fn=nn.CrossEntropyLoss()
 optimizer=optim.SGD(net.parameters(),lr=0.001,momentum=0.9)
-scheduler=StepLR(optimizer,step_size=2,gamma=0.5)
+scheduler=StepLR(optimizer,step_size=4,gamma=0.5)
 
 net.train()
-num_epochs=10
+num_epochs=20
 best_acc=0.0
+patience=3
+counter=0
 writer=SummaryWriter("./logs")
 for epoch in range(num_epochs):
     running_loss=0.0
@@ -85,9 +88,30 @@ for epoch in range(num_epochs):
     writer.add_scalar("LR",optimizer.param_groups[0]['lr'],epoch)
     print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_dataloader):.4f}, Accuracy: {accuracy:.2f},LR:{optimizer.param_groups[0]['lr']:.6f}")
     scheduler.step()
-    if accuracy>best_acc:
+    is_best=accuracy>best_acc
+    if is_best:
         best_acc=accuracy
-        torch.save(net.state_dict(),"best_cifar10.pth")
+        counter=0
+    else:
+        counter+=1
+    
+    checkpoint={
+        "epoch":epoch,
+        "model_state_dict":net.state_dict(),
+        "optimizer_state_dict":optimizer.state_dict(),
+        "scheduler_state_dict":scheduler.state_dict(),
+        "loss":running_loss/len(train_dataloader),
+        "accuracy":accuracy,
+        "best_acc":best_acc,
+        "counter":counter,
+        }
+    torch.save(checkpoint,"checkpoints/checkpoint.pth")
+    
+    if is_best:
+        torch.save(checkpoint,"checkpoints/best_cifar10.pth")
         print(f"保存最佳模型，准确率：{best_acc:.2f}%")
+    if counter>=patience:
+            print("早停")
+            break
 writer.close()
 
